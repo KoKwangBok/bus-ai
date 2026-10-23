@@ -1,1 +1,189 @@
 
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#10243a">
+<title>버스메이트</title>
+<style>
+*{box-sizing:border-box}
+body{margin:0;background:#f1f5f9;color:#172334;font-family:Arial,"Malgun Gothic",sans-serif}
+header{background:#10243a;color:white;padding:24px 18px 28px;border-radius:0 0 24px 24px}
+.brand{font-size:27px;font-weight:800}
+.sub{font-size:13px;color:#cbd5e1;margin-top:8px}
+.container{padding:16px;max-width:650px;margin:auto}
+.card{background:white;border-radius:17px;padding:18px;margin-bottom:14px;box-shadow:0 3px 12px #1723340c}
+.label{font-size:13px;color:#64748b}
+.course{font-size:23px;font-weight:800;margin:12px 0}
+.status{display:inline-block;background:#dcfce7;color:#166534;padding:6px 10px;border-radius:20px;font-size:12px}
+h3{margin:0 0 14px;font-size:17px}
+button,.upload{display:block;width:100%;padding:14px;border:0;border-radius:11px;font-size:15px;font-weight:700;cursor:pointer;text-align:center}
+.primary{background:#1464d2;color:white}
+.secondary{background:#e7effb;color:#164b91}
+.dark{background:#10243a;color:white}
+button{margin-top:9px}
+input,textarea{width:100%;padding:13px;border:1px solid #cbd5e1;border-radius:10px;font-size:15px;margin:7px 0 12px;background:white}
+textarea{min-height:100px;resize:vertical}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.tile{background:#f1f5f9;border-radius:12px;padding:14px}
+.tile strong{display:block;font-size:21px;margin-top:8px}
+.note{font-size:12px;color:#64748b;line-height:1.6}
+#photoPreview{width:100%;margin-top:10px;border-radius:10px;display:none}
+footer{text-align:center;padding:12px 0 30px;color:#64748b;font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">🚌 버스메이트</div>
+  <div class="sub">기사님을 위한 스마트 운행 도우미</div>
+</header>
+
+<main class="container">
+  <section class="card">
+    <div class="label">오늘의 운행</div>
+    <div class="course" id="courseDisplay">오늘 배차를 등록하세요</div>
+    <span class="status" id="status">운행 준비</span>
+    <div style="margin-top:18px" class="grid">
+      <div class="tile">
+        <div class="label">현재 시간</div>
+        <strong id="clock">--:--:--</strong>
+      </div>
+      <div class="tile">
+        <div class="label">다음 출발까지</div>
+        <strong id="countdown">미등록</strong>
+      </div>
+    </div>
+    <button class="primary" onclick="startDrive()">▶ 운행 시작</button>
+    <button class="secondary" onclick="endDrive()">■ 운행 종료</button>
+  </section>
+
+  <section class="card">
+    <h3>📅 오늘의 배차 등록</h3>
+    <label class="label" for="course">코스명 및 목적지</label>
+    <input id="course" placeholder="예: 서울2코스 3번 / 전주 출발">
+    <label class="label" for="departure">출발 예정 시간</label>
+    <input id="departure" type="time">
+    <label class="label" for="destination">출발지 또는 목적지</label>
+    <input id="destination" placeholder="예: 전주 → 서울">
+    <button class="primary" onclick="saveSchedule()">배차 저장하기</button>
+    <button class="secondary" onclick="setAlarm()">🔔 출발 알림 설정</button>
+    <p class="note">출발 30분 전, 5분 전, 1분 전 알림을 지원하도록 확장할 예정입니다. 브라우저를 닫아도 울리는 실제 알람은 별도 구현이 필요합니다.</p>
+  </section>
+
+  <section class="card">
+    <h3>📷 코스표 사진 등록</h3>
+    <input id="photo" type="file" accept="image/*" capture="environment">
+    <img id="photoPreview" alt="선택한 코스표 미리보기">
+    <button class="secondary" onclick="previewPhoto()">사진 확인하기</button>
+    <p class="note">현재는 사진 선택과 미리보기 기능입니다. 사진 속 글자를 자동으로 읽는 OCR 기능은 다음 단계에서 추가합니다.</p>
+  </section>
+
+  <section class="card">
+    <h3>✉️ 문자 배차 등록</h3>
+    <textarea id="dispatchText" placeholder="회사에서 받은 배차 문자를 여기에 붙여넣으세요."></textarea>
+    <button class="primary" onclick="parseDispatch()">배차 내용 가져오기</button>
+    <p class="note">문자 내용을 확인해 배차 입력란에 옮길 수 있습니다. 실제 회사 시스템과 자동 연동되는 기능은 아닙니다.</p>
+  </section>
+
+  <section class="card">
+    <h3>🛎️ 운행 메모</h3>
+    <textarea id="memo" placeholder="숙박지, 승차홈, 휴식시간, 택배 수화물 등을 기록하세요."></textarea>
+    <button class="secondary" onclick="saveMemo()">메모 저장</button>
+    <div id="memoStatus" class="note"></div>
+  </section>
+  <footer>BusMate · 안전 운행이 가장 중요합니다.</footer>
+</main>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function updateClock(){
+  const now = new Date();
+  $('clock').textContent = now.toLocaleTimeString('ko-KR',{hour12:false});
+  const time = $('departure').value;
+  if(!time){$('countdown').textContent='미등록';return;}
+  const [h,m]=time.split(':').map(Number);
+  const target=new Date();
+  target.setHours(h,m,0,0);
+  let diff=target-now;
+  if(diff<0)diff+=86400000;
+  const mins=Math.floor(diff/60000);
+  $('countdown').textContent=mins>=60
+    ?Math.floor(mins/60)+'시간 '+mins%60+'분'
+    :mins+'분';
+}
+setInterval(updateClock,1000);
+updateClock();
+
+function saveSchedule(){
+  const course=$('course').value.trim();
+  const time=$('departure').value;
+  const destination=$('destination').value.trim();
+  if(!course){alert('코스명 또는 배차 내용을 입력하세요.');return;}
+  localStorage.setItem('bm_course',course);
+  localStorage.setItem('bm_time',time);
+  localStorage.setItem('bm_destination',destination);
+  showSchedule();
+  alert('배차를 저장했습니다.');
+}
+function showSchedule(){
+  const c=localStorage.getItem('bm_course')||'';
+  const t=localStorage.getItem('bm_time')||'';
+  const d=localStorage.getItem('bm_destination')||'';
+  if(c)$('courseDisplay').textContent=c;
+  $('course').value=c;
+  $('departure').value=t;
+  $('destination').value=d;
+  updateClock();
+}
+function startDrive(){
+  $('status').textContent='운행 중';
+  $('status').style.background='#dbeafe';
+  $('status').style.color='#1d4ed8';
+  localStorage.setItem('bm_status','운행 중');
+}
+function endDrive(){
+  $('status').textContent='운행 종료 · 휴식';
+  $('status').style.background='#fef3c7';
+  $('status').style.color='#92400e';
+  localStorage.setItem('bm_status','운행 종료 · 휴식');
+}
+function setAlarm(){
+  const t=$('departure').value;
+  if(!t){alert('먼저 출발 시간을 입력하세요.');return;}
+  if(!('Notification' in window)){
+    alert('이 브라우저는 알림을 지원하지 않습니다. 실제 출발 알람은 Android 앱 기능으로 추가해야 합니다.');
+    return;
+  }
+  Notification.requestPermission().then(p=>{
+    if(p==='granted'){
+      new Notification('버스메이트',{body:'출발 예정 '+t+' · 브라우저 알림은 예약 알람을 보장하지 않습니다.'});
+    }else{
+      alert('브라우저 알림 권한을 허용해주세요.');
+    }
+  });
+}
+function previewPhoto(){
+  const file=$('photo').files[0];
+  if(!file){alert('먼저 코스표 사진을 선택하세요.');return;}
+  $('photoPreview').src=URL.createObjectURL(file);
+  $('photoPreview').style.display='block';
+}
+function parseDispatch(){
+  const text=$('dispatchText').value.trim();
+  if(!text){alert('먼저 배차 문자를 붙여넣으세요.');return;}
+  $('course').value=text.slice(0,80);
+  alert('배차 내용을 입력란에 옮겼습니다. 출발 시간과 목적지를 확인하고 저장하세요.');
+  $('course').scrollIntoView({behavior:'smooth',block:'center'});
+}
+function saveMemo(){
+  localStorage.setItem('bm_memo',$('memo').value);
+  $('memoStatus').textContent='메모를 이 브라우저에 저장했습니다.';
+}
+$('memo').value=localStorage.getItem('bm_memo')||'';
+showSchedule();
+if(localStorage.getItem('bm_status'))$('status').textContent=localStorage.getItem('bm_status');
+</script>
+</body>
+</html>
